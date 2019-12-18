@@ -1,39 +1,95 @@
 package util;
+import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
 
-import okhttp3.Call;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
+import java.io.*;
 
-import java.io.IOException;
-import java.util.concurrent.TimeUnit;
-
+/**
+ * @author ZTF
+ */
 public class HttpUtil {
-    private static OkHttpClient okHttpClient;
-    private static int num = 0;
+    static CloseableHttpClient httpClient = HttpClients.createDefault();
 
-    static {
-        okHttpClient = new OkHttpClient.Builder()
-                .readTimeout(1, TimeUnit.SECONDS)
-                .connectTimeout(1, TimeUnit.SECONDS)
-                .build();
+    public static String getHtml(String url) {
+        CloseableHttpResponse httpResponse = null;
+        String htmlString = "";
+        try {
+            HttpGet httpGet = new HttpGet(url);
+            httpResponse = httpClient.execute(httpGet);
+            if(httpResponse.getStatusLine().getStatusCode() == 200) {
+                HttpEntity httpEntity = httpResponse.getEntity();
+                htmlString = EntityUtils.toString(httpEntity);
+                EntityUtils.consume(httpEntity);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if(httpResponse != null) {
+                try {
+                    httpResponse.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        return htmlString;
     }
 
-    public static String get(String path) {
-        //创建连接客户端
-        Request request = new Request.Builder()
-                .url(path)
-                .build();
-        //创建"调用" 对象
-        Call call = okHttpClient.newCall(request);
-        try {
-            Response response = call.execute();//执行
-            if (response.isSuccessful()) {
-                return response.body().string();
+    public static void downloadPicture(String path, String columnName) {
+        CloseableHttpResponse response = null;
+        File localFile = getLocalFile(path, columnName);
+            try {
+                HttpGet httpGet = new HttpGet(path);
+                response = httpClient.execute(httpGet);
+                InputStream inputStream = response.getEntity().getContent();
+                BufferedInputStream bufferedInputStream = new BufferedInputStream(inputStream);
+                BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(new FileOutputStream(localFile));
+                int flag;
+                byte[] bytes = new byte[1024];
+                while ((flag = bufferedInputStream.read(bytes)) != -1) {
+                    bufferedOutputStream.write(bytes,0,flag);
+                }
+                bufferedOutputStream.close();
+                bufferedInputStream.close();
+                System.out.println(columnName + " " + getFileName(path) + " download complete");
+            } catch (IOException e) {
+                System.out.println("文件下载失败" + columnName + path);
+                e.printStackTrace();
+            } finally {
+                if (response != null) {
+                    try {
+                        response.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
             }
-        } catch (IOException e) {
-            System.out.println("链接格式有误:" + path);
+
+    }
+
+    private static File getLocalFile(String path, String columnName){
+        String fileName = getFileName(path);
+        File outputFile = new File("C:\\Spider\\pictures\\" + columnName + "\\" + fileName);
+        File parent = outputFile.getParentFile();
+        if (!parent.exists()) {
+            parent.mkdirs();
         }
-        return null;
+        if (!outputFile.exists()) {
+            try {
+                outputFile.createNewFile();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        return outputFile;
+    }
+
+    private static String getFileName(String path) {
+        return path.substring(path.lastIndexOf("/") + 1);
     }
 }
